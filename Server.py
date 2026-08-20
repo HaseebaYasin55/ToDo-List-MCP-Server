@@ -20,6 +20,8 @@ or directly:
     python server.py
 """
 
+import os
+
 from mcp.server.fastmcp import FastMCP
 
 import storage
@@ -27,7 +29,16 @@ import storage
 # Create the MCP server instance.
 # The name "Todo List MCP Server" is what shows up in MCP clients like
 # Claude Desktop when they list connected servers.
-mcp = FastMCP("Todo List MCP Server")
+#
+# host/port only matter when running over HTTP (see the bottom of this
+# file) — they're ignored when running locally over stdio. We read PORT
+# from the environment because cloud hosts like Railway assign it
+# automatically; 8000 is just a sensible local default.
+mcp = FastMCP(
+    "Todo List MCP Server",
+    host="0.0.0.0",
+    port=int(os.environ.get("PORT", 8000)),
+)
 
 
 @mcp.tool()
@@ -115,5 +126,21 @@ def delete_todo(todo_id: int) -> dict:
 # This block only runs when you execute "python server.py" directly.
 # It is not used by "uv run mcp dev" or "uv run mcp install", which
 # import the `mcp` object above instead.
+#
+# Two transports are supported:
+#   - "stdio"           : for local clients like Claude Desktop, which
+#                          launch this script as a subprocess and talk
+#                          to it over stdin/stdout. This is the DEFAULT,
+#                          used automatically when no PORT env var is set.
+#   - "streamable-http"  : for cloud hosts like Railway, which need the
+#                          server to listen on a network port instead.
+#                          Railway (and most hosts) set a PORT env var
+#                          automatically, so we use that as our signal
+#                          to switch modes.
 if __name__ == "__main__":
-    mcp.run()
+    if os.environ.get("PORT"):
+        # Running on a cloud host (e.g. Railway) — serve over HTTP.
+        mcp.run(transport="streamable-http")
+    else:
+        # Running locally — serve over stdio (for Claude Desktop / Inspector).
+        mcp.run()
